@@ -22,7 +22,7 @@ chat_sessions = {}
 user_last_seen = {}
 user_message_count = {}
 MAX_HISTORY = 20
-INACTIVITY_SECONDS = 30 * 24 * 60 * 60
+INACTIVITY_SECONDS = 30 * 24 * 60 * 60  # 30 days
 
 # === ON READY ===
 @bot.event
@@ -97,57 +97,4 @@ async def stats(interaction: discord.Interaction):
 async def topteased(interaction: discord.Interaction):
     if not user_message_count:
         return await interaction.response.send_message("No data yet!", ephemeral=True)
-    top = sorted(user_message_count.items(), key=lambda x: x[1], reverse=True)[:10]
-    lines = [f"**{i+1}** {bot.get_user(uid).display_name if bot.get_user(uid) else '??'} — {count:,} msgs" 
-             for i, (uid, count) in enumerate(top)]
-    embed = discord.Embed(title="Top 10 Most Teased", description="\n".join(lines), color=0xff69b4)
-    await interaction.response.send_message(embed=embed, ephemeral=True)
-
-# === /reset ===
-@bot.tree.command(name="reset", description="ADMIN: Reset user memory")
-@discord.app_commands.checks.has_permissions(manage_guild=True)
-async def reset(interaction: discord.Interaction, member: discord.Member = None):
-    uid = (member or interaction.user).id
-    if uid in chat_sessions:
-        del chat_sessions[uid]
-        user_last_seen.pop(uid, None)
-        user_message_count.pop(uid, None)
-        await interaction.response.send_message(f"Memory erased for **{(member or interaction.user).display_name}**!", ephemeral=True)
-    else:
-        await interaction.response.send_message("No memory to erase!", ephemeral=True)
-
-# === GENERATE RESPONSE (CORRECT MODEL NAME) ===
-async def generate_response(uid: int, msg: str) -> str:
-    loop = asyncio.get_event_loop()
-    if uid not in chat_sessions:
-        try:
-            # CORRECT: gemini-pro (NO "models/" prefix)
-            model = genai.GenerativeModel('gemini-pro')
-            chat = model.start_chat(history=[
-                {"role": "user", "parts": [SHINOA_SYSTEM_PROMPT]},
-                {"role": "model", "parts": ["Got it! I'm Shinoa~ Ready to tease!"]}
-            ])
-            chat_sessions[uid] = chat
-            print(f"[MODEL] Created session for user {uid} using gemini-pro")
-        except Exception as e:
-            print(f"[FATAL] Model init failed: {e}")
-            return "My AI core is down! Blame @inxainee~"
-    else:
-        chat = chat_sessions[uid]
-
-    try:
-        resp = await loop.run_in_executor(None, lambda: chat.send_message(msg))
-        if len(chat.history) > MAX_HISTORY * 2:
-            chat.history = chat.history[-MAX_HISTORY * 2:]
-        return resp.text.strip()
-    except Exception as e:
-        print(f"[GEMINI ERROR] {e}")
-        return "Tch, my brilliance was too much for the system, I guess."
-
-# === RUN ===
-if __name__ == "__main__":
-    token = os.getenv("DISCORD_BOT_TOKEN")
-    if not token:
-        print("ERROR: DISCORD_BOT_TOKEN missing!")
-    else:
-        bot.run(token)
+    top = sorted(user_message_count.items(), key=lambda x
