@@ -22,7 +22,7 @@ chat_sessions = {}
 user_last_seen = {}
 user_message_count = {}
 MAX_HISTORY = 20
-INACTIVITY_SECONDS = 30 * 24 * 60 * 60  # 30 days
+INACTIVITY_SECONDS = 30 * 24 * 60 * 60
 
 # === ON READY ===
 @bot.event
@@ -33,7 +33,7 @@ async def on_ready():
         synced = await bot.tree.sync()
         print(f"[COMMANDS] Synced {len(synced)} slash commands")
     except Exception as e:
-        print(f"[ERROR] Command sync failed: {e}")
+        print(f"[ERROR] Sync failed: {e}")
     bot.loop.create_task(auto_cleanup())
 
 # === AUTO CLEANUP ===
@@ -88,7 +88,7 @@ async def stats(interaction: discord.Interaction):
     embed.add_field(name="Active Users", value=users, inline=True)
     embed.add_field(name="Total Messages", value=f"{msgs:,}", inline=True)
     embed.add_field(name="Avg per User", value=avg, inline=True)
-    embed.set_footer(text="Auto-delete: 30 days inactive")
+    embed.set_footer(text="Auto-delete: 30 days")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # === /topteased ===
@@ -98,11 +98,8 @@ async def topteased(interaction: discord.Interaction):
     if not user_message_count:
         return await interaction.response.send_message("No data yet!", ephemeral=True)
     top = sorted(user_message_count.items(), key=lambda x: x[1], reverse=True)[:10]
-    lines = []
-    for i, (uid, count) in enumerate(top, 1):
-        user = bot.get_user(uid)
-        name = user.display_name if user else "Unknown"
-        lines.append(f"**{i}** {name} — {count:,} msgs")
+    lines = [f"**{i+1}** {bot.get_user(uid).display_name if bot.get_user(uid) else '??'} — {count:,} msgs" 
+             for i, (uid, count) in enumerate(top)]
     embed = discord.Embed(title="Top 10 Most Teased", description="\n".join(lines), color=0xff69b4)
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -115,24 +112,26 @@ async def reset(interaction: discord.Interaction, member: discord.Member = None)
         del chat_sessions[uid]
         user_last_seen.pop(uid, None)
         user_message_count.pop(uid, None)
-        await interaction.response.send_message(f"Memory of **{member or interaction.user}** erased!", ephemeral=True)
+        await interaction.response.send_message(f"Memory erased for **{(member or interaction.user).display_name}**!", ephemeral=True)
     else:
         await interaction.response.send_message("No memory to erase!", ephemeral=True)
 
-# === GENERATE RESPONSE (FIXED MODEL) ===
+# === GENERATE RESPONSE (USING gemini-pro) ===
 async def generate_response(uid: int, msg: str) -> str:
     loop = asyncio.get_event_loop()
     if uid not in chat_sessions:
         try:
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            # USE gemini-pro — 100% AVAILABLE
+            model = genai.GenerativeModel('gemini-pro')
             chat = model.start_chat(history=[
                 {"role": "user", "parts": [SHINOA_SYSTEM_PROMPT]},
                 {"role": "model", "parts": ["Got it! I'm Shinoa~ Ready to tease!"]}
             ])
             chat_sessions[uid] = chat
+            print(f"[MODEL] Using gemini-pro for user {uid}")
         except Exception as e:
-            print(f"[MODEL ERROR] {e}")
-            return "Oops, my AI brain is glitching!"
+            print(f"[FATAL] Model init failed: {e}")
+            return "My AI core is down! Blame @inxainee~"
     else:
         chat = chat_sessions[uid]
 
@@ -143,12 +142,12 @@ async def generate_response(uid: int, msg: str) -> str:
         return resp.text.strip()
     except Exception as e:
         print(f"[GEMINI ERROR] {e}")
-        return "Tch, system error. Try again, human."
+        return "Tch, my brilliance was too much for the system, I guess."
 
 # === RUN ===
 if __name__ == "__main__":
     token = os.getenv("DISCORD_BOT_TOKEN")
     if not token:
-        print("ERROR: DISCORD_BOT_TOKEN not set!")
+        print("ERROR: DISCORD_BOT_TOKEN missing!")
     else:
         bot.run(token)
