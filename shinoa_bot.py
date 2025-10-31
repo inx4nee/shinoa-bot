@@ -116,19 +116,19 @@ async def reset(interaction: discord.Interaction, member: discord.Member = None)
     else:
         await interaction.response.send_message("No memory to erase!", ephemeral=True)
 
-# === GENERATE RESPONSE (USING gemini-pro) ===
+# === GENERATE RESPONSE (CORRECT MODEL NAME) ===
 async def generate_response(uid: int, msg: str) -> str:
     loop = asyncio.get_event_loop()
     if uid not in chat_sessions:
         try:
-            # USE gemini-pro — 100% AVAILABLE
+            # CORRECT: gemini-pro (NO "models/" prefix)
             model = genai.GenerativeModel('gemini-pro')
             chat = model.start_chat(history=[
                 {"role": "user", "parts": [SHINOA_SYSTEM_PROMPT]},
                 {"role": "model", "parts": ["Got it! I'm Shinoa~ Ready to tease!"]}
             ])
             chat_sessions[uid] = chat
-            print(f"[MODEL] Using gemini-pro for user {uid}")
+            print(f"[MODEL] Created session for user {uid} using gemini-pro")
         except Exception as e:
             print(f"[FATAL] Model init failed: {e}")
             return "My AI core is down! Blame @inxainee~"
