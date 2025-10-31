@@ -88,7 +88,7 @@ async def stats(interaction: discord.Interaction):
     embed.add_field(name="Active Users", value=users, inline=True)
     embed.add_field(name="Total Messages", value=f"{msgs:,}", inline=True)
     embed.add_field(name="Avg per User", value=avg, inline=True)
-    embed.set_footer(text="Model: gemini-1.5-flash-latest | Auto-delete: 30 days")
+    embed.set_footer(text="Model: gemini-2.5-flash | Auto-delete: 30 days")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # === /topteased ===
@@ -119,19 +119,19 @@ async def reset(interaction: discord.Interaction, member: discord.Member = None)
     else:
         await interaction.response.send_message("No memory to erase!", ephemeral=True)
 
-# === GENERATE RESPONSE (gemini-1.5-flash-latest) ===
+# === GENERATE RESPONSE (gemini-2.5-flash) ===
 async def generate_response(uid: int, msg: str) -> str:
     loop = asyncio.get_event_loop()
     if uid not in chat_sessions:
         try:
-            # CORRECT: gemini-1.5-flash-latest — STABLE & NO 404
-            model = genai.GenerativeModel('gemini-1.5-flash-latest')
+            # CORRECT: gemini-2.5-flash — LATEST & SUPPORTED
+            model = genai.GenerativeModel('gemini-2.5-flash')
             chat = model.start_chat(history=[
                 {"role": "user", "parts": [SHINOA_SYSTEM_PROMPT]},
                 {"role": "model", "parts": ["Got it! I'm Shinoa~ Ready to tease!"]}
             ])
             chat_sessions[uid] = chat
-            print(f"[MODEL] Created session for user {uid} using gemini-1.5-flash-latest")
+            print(f"[MODEL] Created session for user {uid} using gemini-2.5-flash")
         except Exception as e:
             print(f"[FATAL] Model init failed: {e}")
             return "My AI core is glitching! Blame @inxainee~"
