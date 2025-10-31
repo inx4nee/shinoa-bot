@@ -3,10 +3,7 @@ from discord.ext import commands
 import google.generativeai as genai
 import asyncio
 import os
-from flask import Flask
-from threading import Thread
 import time
-from collections import defaultdict
 
 # Configure Gemini API
 genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
@@ -25,9 +22,9 @@ Stay in character, never too serious, always with a teasing edge.
 """
 
 # Memory & Stats
-chat_sessions = {}        # user_id -> Gemini chat
-user_last_seen = {}       # user_id -> timestamp
-user_message_count = {}   # user_id -> total messages
+chat_sessions = {}
+user_last_seen = {}
+user_message_count = {}
 MAX_HISTORY = 20
 INACTIVITY_DAYS = 30
 INACTIVITY_SECONDS = INACTIVITY_DAYS * 24 * 60 * 60
@@ -124,7 +121,7 @@ async def stats_command(interaction: discord.Interaction):
     embed.set_footer(text="I never forget... unless you make me~")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# ============ /topteased (LEADERBOARD) ============
+# ============ /topteased ============
 @bot.tree.command(name="topteased", description="Top 10 most teased humans (admin only)")
 @discord.app_commands.checks.has_permissions(manage_guild=True)
 async def topteased_command(interaction: discord.Interaction):
@@ -132,9 +129,7 @@ async def topteased_command(interaction: discord.Interaction):
         await interaction.response.send_message("No one has talked to me yet! I'm lonely~", ephemeral=True)
         return
 
-    # Sort by message count
     leaderboard = sorted(user_message_count.items(), key=lambda x: x[1], reverse=True)[:10]
-    
     lines = []
     for rank, (user_id, count) in enumerate(leaderboard, 1):
         user = bot.get_user(user_id)
@@ -142,25 +137,17 @@ async def topteased_command(interaction: discord.Interaction):
         medal = "1st Place" if rank == 1 else "2nd Place" if rank == 2 else "3rd Place" if rank == 3 else f"{rank}th"
         lines.append(f"{medal} **{name}** — {count:,} messages")
 
-    desc = "\n".join(lines) if lines else "No data yet~"
-
-    embed = discord.Embed(
-        title="Top 10 Most Teased Humans",
-        description=desc,
-        color=0xff69b4
-    )
+    desc = "\n".join(lines)
+    embed = discord.Embed(title="Top 10 Most Teased Humans", description=desc, color=0xff69b4)
     embed.set_footer(text="Keep talking... I might rank you next!")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @topteased_command.error
 async def topteased_error(interaction: discord.Interaction, error):
     if isinstance(error, discord.app_commands.MissingPermissions):
-        await interaction.response.send_message(
-            "Only **admins** can see who’s the most obsessed with me~", 
-            ephemeral=True
-        )
+        await interaction.response.send_message("Only **admins** can see the leaderboard~", ephemeral=True)
 
-# ============ /reset (ADMIN ONLY) ============
+# ============ /reset ============
 @bot.tree.command(name="reset", description="ADMIN: Wipe a user's memory")
 @discord.app_commands.checks.has_permissions(manage_guild=True)
 async def reset_memory(interaction: discord.Interaction, member: discord.Member = None):
@@ -171,31 +158,21 @@ async def reset_memory(interaction: discord.Interaction, member: discord.Member 
         del chat_sessions[target_id]
         user_last_seen.pop(target_id, None)
         user_message_count.pop(target_id, None)
-        await interaction.response.send_message(
-            f"Poof! **{target_user.display_name}'s** memory erased~ "
-            "They’re a stranger now.", 
-            ephemeral=True
-        )
+        await interaction.response.send_message(f"Poof! **{target_user.display_name}'s** memory erased~", ephemeral=True)
     else:
-        await interaction.response.send_message(
-            f"I never knew **{target_user.display_name}**! Reset complete~", 
-            ephemeral=True
-        )
+        await interaction.response.send_message(f"I never knew **{target_user.display_name}**! Reset complete~", ephemeral=True)
 
 @reset_memory.error
 async def reset_error(interaction: discord.Interaction, error):
     if isinstance(error, discord.app_commands.MissingPermissions):
-        await interaction.response.send_message(
-            "Only **admins** can erase memories~", 
-            ephemeral=True
-        )
+        await interaction.response.send_message("Only **admins** can erase memories~", ephemeral=True)
 
-# ============ Generate Response ============
+# ============ Generate Response (FIXED) ============
 async def generate_shinoa_response(user_id: int, user_message: str) -> str:
     loop = asyncio.get_event_loop()
 
     if user_id not in chat_sessions:
-        model = genai.GenerativeModel('models/gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-1.5-flash')  # CORRECT NAME
         chat = model.start_chat(
             history=[
                 {"role": "user", "parts": [SHINOA_SYSTEM_PROMPT]},
@@ -211,33 +188,14 @@ async def generate_shinoa_response(user_id: int, user_message: str) -> str:
             None,
             lambda: chat.send_message(user_message)
         )
-
         if len(chat.history) > MAX_HISTORY * 2:
             chat.history = chat.history[-MAX_HISTORY * 2:]
-
         return response.text.strip()
-
     except Exception as e:
         print(f"Gemini API error for user {user_id}: {e}")
         return "Tch, my brilliance was too much for the system, I guess."
 
-# ============ Flask Keep-Alive ============
-app = Flask('')
-
-@app.route('/')
-def main():
-    return "Your Bot Is Alive! (Shinoa says hi~)"
-
-def run_flask():
-    app.run(host='0.0.0.0', port=8080)
-
-def keep_alive():
-    server_thread = Thread(target=run_flask)
-    server_thread.start()
-
-keep_alive()
-
-# ============ Run Bot ============
+# ============ RUN BOT ============
 BOT_TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 if __name__ == "__main__":
     if not BOT_TOKEN:
